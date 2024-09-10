@@ -4,4 +4,3 @@ Pillow
 scikeras
 streamlit
 ultralytics
-pytorch
