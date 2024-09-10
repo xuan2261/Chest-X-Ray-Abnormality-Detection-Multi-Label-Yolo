@@ -50,8 +50,6 @@ def preprocess_image(image):
         st.warning("Please upload a valid radiograph.")
         return None
 
-from PIL import ImageFont
-
 # Draw bounding boxes on image based on YOLO detections with larger text
 def draw_bounding_boxes(image, results):
     # Ensure image is in RGB mode
@@ -60,6 +58,7 @@ def draw_bounding_boxes(image, results):
     
     draw = ImageDraw.Draw(image)
     info_list = []  # List to store detected abnormalities and their confidence
+    color_list = []  # List to store the colors corresponding to each detected abnormality
     has_detections = False  # To track if any detections are made
     
     # Set the font size
@@ -100,12 +99,13 @@ def draw_bounding_boxes(image, results):
                 draw.text((x_min, y_min - text_height), text, font=font, fill=(255, 255, 255))
                 
                 info_list.append(f"{label}: {confidence:.2f}")
+                color_list.append(color)  # Store the color for this detection
                 has_detections = True
     
     if not has_detections:
         st.write("No abnormalities detected with sufficient confidence.")
     
-    return image, info_list
+    return image, info_list, color_list
 
 # Main function for Streamlit app
 def main():
@@ -143,13 +143,13 @@ def main():
                 time.sleep(2)
                 image_data = preprocess_image(resized_image)
                 results = model(image_data)  # Make predictions with YOLO
-                output_image, info_list = draw_bounding_boxes(resized_image.copy(), results)  # Draw bounding boxes
+                output_image, info_list, color_list = draw_bounding_boxes(resized_image.copy(), results)  # Draw bounding boxes
                 column.image(output_image, caption=f"Results for Chest X-Ray {idx + 1}")
-                # Display abnormalities and confidence scores
+                # Display abnormalities and confidence scores with matching colors
                 if info_list:
                     st.write("### Detected Abnormalities and Confidence:")
-                    for info in info_list:
-                        st.write(info)
+                    for info, color in zip(info_list, color_list):
+                        st.markdown(f"<span style='color: rgb{color};'>{info}</span>", unsafe_allow_html=True)
 
     st.markdown("---")
     st.subheader('Submit Your Own X-ray')
@@ -168,13 +168,13 @@ def main():
                 # Make predictions with YOLO
                 results = model(input_data)
                 # Draw bounding boxes on the uploaded image
-                output_image, info_list = draw_bounding_boxes(image.copy(), results)
+                output_image, info_list, color_list = draw_bounding_boxes(image.copy(), results)
                 st.image(output_image, caption="Predictions with Bounding Boxes")
-                # Display abnormalities and confidence scores
+                # Display abnormalities and confidence scores with matching colors
                 if info_list:
                     st.write("### Detected Abnormalities and Confidence:")
-                    for info in info_list:
-                        st.write(info)
+                    for info, color in zip(info_list, color_list):
+                        st.markdown(f"<span style='color: rgb{color};'>{info}</span>", unsafe_allow_html=True)
 
             st.write("*Important: Consult a healthcare professional for further advice.*")
 
