@@ -1,0 +1,7 @@
+﻿joblib
+numpy
+Pillow
+scikeras
+streamlit
+ultralytics
+pytorch
