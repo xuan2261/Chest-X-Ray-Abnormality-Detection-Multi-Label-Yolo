@@ -4,3 +4,4 @@ Pillow
 scikeras
 streamlit
 ultralytics
+opencv-python-headless
