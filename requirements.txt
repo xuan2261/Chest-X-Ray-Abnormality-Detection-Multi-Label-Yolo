@@ -1,7 +1,7 @@
-﻿joblib
+opencv-python-headless
+joblib
 numpy
 Pillow
 scikeras
 streamlit
 ultralytics
-opencv-python-headless
