@@ -6,3 +6,4 @@ scikeras
 streamlit
 ultralytics
 dill
+pydicom
