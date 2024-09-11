@@ -1,9 +1,11 @@
 import os
+import cv2
 import numpy as np
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 from ultralytics import YOLO
 import time
+import pydicom
 
 # Load YOLO model
 model = YOLO('YOLOv8m-best.pt')  # Replace with your actual YOLO model path
@@ -36,6 +38,49 @@ label2color = [
 
 # Convert list of RGB values to tuple for easier usage with PIL
 label2color = [tuple(color) for color in label2color]
+
+from pydicom.pixel_data_handlers.util import apply_voi_lut
+
+def read_xray(path, voi_lut = True, fix_monochrome = True, downscale_factor = 3):
+    dicom = pydicom.read_file(path)
+
+    # VOI LUT (if available by DICOM device) is used to transform raw DICOM data to "human-friendly" view
+    if voi_lut:
+        data = apply_voi_lut(dicom.pixel_array, dicom)
+    else:
+        data = dicom.pixel_array
+
+    # depending on this value, X-ray may look inverted - fix that:
+    if fix_monochrome and dicom.PhotometricInterpretation == "MONOCHROME1":
+        data = np.amax(data) - data
+
+    data = data - np.min(data)
+    data = data / np.max(data)
+    data = (data * 255.0).astype(np.uint8)
+    new_shape = tuple([int(x / downscale_factor) for x in data.shape])
+    data = cv2.resize(data, (new_shape[1], new_shape[0]))
+
+    return data
+
+# Function to convert DICOM to image using read_xray
+def dicom_to_image(dicom_file):
+    try:
+        # Sao chép tệp vào thư mục làm việc hiện tại
+        with open(dicom_file.name, "wb") as f:
+            f.write(dicom_file.getbuffer())
+
+        image_array = read_xray(dicom_file.name) 
+        if image_array is None:
+            raise Exception("Lỗi khi đọc tệp DICOM")
+        final_image = Image.fromarray(image_array)
+
+        # Xóa tệp sau khi xử lý xong
+        os.remove(dicom_file.name)
+
+        return final_image
+    except (pydicom.errors.InvalidDicomError, OSError, Exception) as e:
+        st.error(f"Lỗi khi đọc tệp DICOM: {e}")
+        return None
 
 # Preprocess image for YOLO (ensures proper format)
 def preprocess_image(image):
@@ -107,6 +152,23 @@ def draw_bounding_boxes(image, results):
     
     return image, info_list, color_list
 
+def is_valid_dicom(uploaded_file):
+    if not uploaded_file.name.lower().endswith(('.dcm', '.dicom')):
+        return False  # Kiểm tra phần mở rộng tệp
+
+    try:
+        file_bytes = uploaded_file.getvalue()  # Đọc nội dung tệp dưới dạng bytes
+        header = file_bytes[128:135]
+        print(header)
+        if header[:4] != b'DICM':
+            return False  # Kiểm tra magic number
+
+        pydicom.dcmread(uploaded_file)  # Thử đọc bằng pydicom
+        return True
+    except pydicom.errors.InvalidDicomError:
+        print("Có ngoại lệ xảy ra")
+        return False
+
 # Main function for Streamlit app
 def main():
     st.title("Lung Abnormality Detection with YOLO")
@@ -153,12 +215,17 @@ def main():
 
     st.markdown("---")
     st.subheader('Submit Your Own X-ray')
-    uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
+    uploaded_file = st.file_uploader("Choose an image...", type=["dicom", "png", "jpg", "jpeg"])
+    # uploaded_file = st.file_uploader("Choose an image...", type=["jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
-        # Display the uploaded image
-        image = Image.open(uploaded_file)
-        st.image(image, caption="Uploaded Image")
+        # Check if it's a DICOM file or regular image
+        if is_valid_dicom(uploaded_file):
+            image = dicom_to_image(uploaded_file)
+            st.image(image, caption="Uploaded DICOM Image", use_column_width=True)
+        else:
+            image = Image.open(uploaded_file)
+            st.image(image, caption="Uploaded Image", use_column_width=True)
 
         # Preprocess the uploaded image
         input_data = preprocess_image(image)
