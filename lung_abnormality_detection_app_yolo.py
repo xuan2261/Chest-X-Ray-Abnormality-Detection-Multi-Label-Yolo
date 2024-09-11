@@ -42,7 +42,8 @@ label2color = [tuple(color) for color in label2color]
 from pydicom.pixel_data_handlers.util import apply_voi_lut
 
 def read_xray(path, voi_lut = True, fix_monochrome = True, downscale_factor = 3):
-    dicom = pydicom.read_file(path)
+    # dicom = pydicom.read_file(path)
+    dicom = pydicom.dcmread(path)
 
     # VOI LUT (if available by DICOM device) is used to transform raw DICOM data to "human-friendly" view
     if voi_lut:
@@ -61,6 +62,22 @@ def read_xray(path, voi_lut = True, fix_monochrome = True, downscale_factor = 3)
     data = cv2.resize(data, (new_shape[1], new_shape[0]))
 
     return data
+
+def is_valid_dicom(uploaded_file):
+    if not uploaded_file.name.lower().endswith(('.dcm', '.dicom')):
+        return False  # Kiểm tra phần mở rộng tệp
+
+    try:
+        file_bytes = uploaded_file.getvalue()  # Đọc nội dung tệp dưới dạng bytes
+        header = file_bytes[128:135]
+        if header[:4] != b'DICM':
+            return False  # Kiểm tra magic number
+
+        pydicom.dcmread(uploaded_file)  # Thử đọc bằng pydicom
+        return True
+    except pydicom.errors.InvalidDicomError:
+        print("Có ngoại lệ xảy ra")
+        return False
 
 # Function to convert DICOM to image using read_xray
 def dicom_to_image(dicom_file):
@@ -151,23 +168,6 @@ def draw_bounding_boxes(image, results):
         st.write("No abnormalities detected with sufficient confidence.")
     
     return image, info_list, color_list
-
-def is_valid_dicom(uploaded_file):
-    if not uploaded_file.name.lower().endswith(('.dcm', '.dicom')):
-        return False  # Kiểm tra phần mở rộng tệp
-
-    try:
-        file_bytes = uploaded_file.getvalue()  # Đọc nội dung tệp dưới dạng bytes
-        header = file_bytes[128:135]
-        print(header)
-        if header[:4] != b'DICM':
-            return False  # Kiểm tra magic number
-
-        pydicom.dcmread(uploaded_file)  # Thử đọc bằng pydicom
-        return True
-    except pydicom.errors.InvalidDicomError:
-        print("Có ngoại lệ xảy ra")
-        return False
 
 # Main function for Streamlit app
 def main():
